@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../services/api_service.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -7,34 +8,69 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final ApiService _apiService = ApiService();
+  Map<String, dynamic>? overviewData;
+  List<dynamic>? jobsData;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final overview = await _apiService.getOverview();
+      final jobs = await _apiService.getJobs();
+      
+      setState(() {
+        overviewData = overview;
+        jobsData = jobs['data'];
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading data: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Job Market Intelligence Dashboard'),
-        elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _loadData,
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildOverviewSection(),
-            SizedBox(height: 20),
-            _buildTrendsSection(),
-            SizedBox(height: 20),
-            _buildSkillsSection(),
-            SizedBox(height: 20),
-            _buildSalarySection(),
-            SizedBox(height: 20),
-            _buildLocationSection(),
-          ],
-        ),
-      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildOverviewSection(),
+                    SizedBox(height: 20),
+                    _buildJobsList(),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
   Widget _buildOverviewSection() {
+    if (overviewData == null) return SizedBox.shrink();
+
     return GridView.count(
       shrinkWrap: true,
       physics: NeverScrollableScrollPhysics(),
@@ -42,11 +78,59 @@ class _HomePageState extends State<HomePage> {
       crossAxisSpacing: 16.0,
       mainAxisSpacing: 16.0,
       children: [
-        _buildStatCard('Total Jobs', '5,234', Colors.blue),
-        _buildStatCard('Average Salary', '\$75,000', Colors.green),
-        _buildStatCard('Hot Skills', '156', Colors.orange),
-        _buildStatCard('Companies', '892', Colors.purple),
+        _buildStatCard(
+          'Total Jobs', 
+          '${overviewData!['total_jobs']}', 
+          Colors.blue
+        ),
+        _buildStatCard(
+          'Companies', 
+          '${overviewData!['total_companies']}', 
+          Colors.green
+        ),
+        _buildStatCard(
+          'Skills', 
+          '${overviewData!['total_skills']}', 
+          Colors.orange
+        ),
+        _buildStatCard(
+          'Avg Salary', 
+          '\$${overviewData!['avg_salary']}', 
+          Colors.purple
+        ),
       ],
+    );
+  }
+
+  Widget _buildJobsList() {
+    if (jobsData == null) return SizedBox.shrink();
+
+    return Card(
+      child: ListView.builder(
+        shrinkWrap: true,
+        physics: NeverScrollableScrollPhysics(),
+        itemCount: jobsData!.length,
+        itemBuilder: (context, index) {
+          final job = jobsData![index];
+          return ListTile(
+            title: Text(job['job_title'] ?? 'No Title'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(job['company_name'] ?? 'Unknown Company'),
+                Text('${job['location'] ?? 'No Location'} • ${job['salary'] ?? 'Salary not specified'}'),
+              ],
+            ),
+            trailing: Chip(
+              label: Text(job['job_type'] ?? 'Full-time'),
+              backgroundColor: Colors.blue.withOpacity(0.1),
+            ),
+            onTap: () {
+              // Add job detail navigation here
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -72,173 +156,6 @@ class _HomePageState extends State<HomePage> {
                 fontSize: 24,
                 color: color,
                 fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTrendsSection() {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Job Market Trends',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 16),
-            Container(
-              height: 300,
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(show: true),
-                  titlesData: FlTitlesData(show: true),
-                  borderData: FlBorderData(show: true),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: [
-                        FlSpot(0, 3),
-                        FlSpot(2, 5),
-                        FlSpot(4, 4),
-                        FlSpot(6, 6),
-                        FlSpot(8, 4),
-                        FlSpot(10, 8),
-                      ],
-                      isCurved: true,
-                      color: Colors.blue,
-                      barWidth: 3,
-                      dotData: FlDotData(show: false),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkillsSection() {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'In-Demand Skills',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 16),
-            _buildSkillBar('Flutter', 0.85),
-            _buildSkillBar('React', 0.78),
-            _buildSkillBar('Python', 0.92),
-            _buildSkillBar('AWS', 0.70),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkillBar(String skill, double percentage) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(skill),
-          SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: percentage,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSalarySection() {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Salary Ranges',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 16),
-            Container(
-              height: 300,
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  maxY: 100,
-                  barTouchData: BarTouchData(enabled: true),
-                  titlesData: FlTitlesData(show: true),
-                  borderData: FlBorderData(show: false),
-                  barGroups: [
-                    BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: 45)]),
-                    BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: 60)]),
-                    BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: 75)]),
-                    BarChartGroupData(x: 3, barRods: [BarChartRodData(toY: 85)]),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLocationSection() {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Geographic Distribution',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 16),
-            Container(
-              height: 300,
-              child: PieChart(
-                PieChartData(
-                  sections: [
-                    PieChartSectionData(
-                      value: 35,
-                      title: 'North',
-                      color: Colors.blue,
-                    ),
-                    PieChartSectionData(
-                      value: 25,
-                      title: 'South',
-                      color: Colors.green,
-                    ),
-                    PieChartSectionData(
-                      value: 20,
-                      title: 'Central',
-                      color: Colors.orange,
-                    ),
-                    PieChartSectionData(
-                      value: 20,
-                      title: 'Other',
-                      color: Colors.purple,
-                    ),
-                  ],
-                ),
               ),
             ),
           ],
