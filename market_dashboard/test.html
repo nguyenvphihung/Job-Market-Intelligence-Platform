@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Jobs API Test</title>
+</head>
+<body>
+    <h2>Jobs Data</h2>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            try {
+                const response = await fetch('http://localhost:3000/api/jobs?page=1&limit=10');
+                const data = await response.json();
+                document.getElementById('result').innerHTML = 
+                    `<pre>Total Jobs: ${data.total}\nCurrent Page: ${data.page}\n\nData:\n${JSON.stringify(data.data, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    `Error: ${error.message}`;
+            }
+        }
+
+        testAPI();
+    </script>
+</body>
+</html>
